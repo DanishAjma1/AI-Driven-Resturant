@@ -1,6 +1,15 @@
+version: "3.8"
+
 services:
-  ember-table:
-    build: .
-    ports: ["3000:3000"]
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        GOOGLE_GENAI_API_KEY: ${GOOGLE_GENAI_API_KEY:-}
+    ports:
+      - "3000:3000"
     environment:
-      GOOGLE_GENAI_API_KEY: ${GOOGLE_GENAI_API_KEY:-}
+      - NODE_ENV=production
+      - GOOGLE_GENAI_API_KEY=${GOOGLE_GENAI_API_KEY}
+    restart: always
