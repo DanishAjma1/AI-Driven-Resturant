@@ -1,0 +1,6 @@
+services:
+  ember-table:
+    build: .
+    ports: ["3000:3000"]
+    environment:
+      GOOGLE_GENAI_API_KEY: ${GOOGLE_GENAI_API_KEY:-}

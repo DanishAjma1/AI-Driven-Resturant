@@ -1,0 +1,14 @@
+node_modules/
+.next/
+*.tsbuildinfo
+*.log
+.env
+.env.*
+!.env.example
+coverage/
+dist/
+
+# Local editor and OS files
+.DS_Store
+.idea/
+.vscode/
