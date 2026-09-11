@@ -1,15 +1,37 @@
-version: "3.8"
-
 services:
-  app:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: embergrain
+      POSTGRES_PASSWORD: embergrain
+      POSTGRES_DB: embergrain
+    ports:
+      - "5432:5432"
+    volumes:
+      - embergrain_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U embergrain"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        GOOGLE_GENAI_API_KEY: ${GOOGLE_GENAI_API_KEY:-}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://embergrain:embergrain@postgres:5432/embergrain?schema=public
+      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-please-32chars}
+      GOOGLE_GENAI_API_KEY: ${GOOGLE_GENAI_API_KEY:-}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      NODE_ENV: production
     ports:
       - "3000:3000"
-    environment:
-      - NODE_ENV=production
-      - GOOGLE_GENAI_API_KEY=${GOOGLE_GENAI_API_KEY}
-    restart: always
+
+volumes:
+  embergrain_postgres_data:

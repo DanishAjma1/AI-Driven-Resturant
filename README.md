@@ -1,146 +1,217 @@
-# Ember & Grain
+# Ember & Grain - Restaurant Management Platform
 
-Ember & Grain is a restaurant ordering demo built with Next.js and TypeScript. It presents a charcoal-kitchen menu, supports cart-based ordering, provides Gemini-assisted menu recommendations, tracks order status, and includes a staff-facing kitchen console with a preparation forecast.
+A production-ready restaurant platform: customer ordering, live order tracking,
+role-specific kitchen/driver consoles, and an admin suite with Recharts
+analytics and Gemini-powered demand forecasting.
 
-![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)
-![pnpm](https://img.shields.io/badge/pnpm-10-orange?logo=pnpm)
-![Docker](https://img.shields.io/badge/Docker-supported-blue?logo=docker)
+Built with **Next.js (App Router) · TypeScript · Tailwind CSS · Prisma ·
+PostgreSQL · Recharts · `@google/genai` (`gemini-2.5-flash`)**, in a `pnpm`
+monorepo.
 
-## Features
+## Architecture
 
-- Landing page with featured menu categories and calls to action.
-- Searchable menu catalog with category and dietary filters.
-- Shared cart with quantity controls and mock order submission.
-- AI menu assistant for craving-based recommendations and cart pairings.
-- Customer order tracker at `/order/[id]` with automatic status polling.
-- Staff kitchen console at `/admin` for monitoring and advancing orders.
-- AI-assisted preparation forecast based on seeded order history.
-- Deterministic AI fallback responses when Gemini is not configured or unavailable.
-- In-memory order storage intended for local demos and evaluation.
+```
+apps/
+  web/                 Next.js App Router app — pages, API route handlers,
+                        RBAC middleware, and the Gemini AI services.
+packages/
+  db/                  Prisma schema, generated client, seed script.
+  shared/               Domain types, DTOs, and Zod schemas shared between
+                        the UI and API route handlers.
+```
 
-## Technology
+**A note on `apps/api`:** this platform's backend is entirely implemented as
+Next.js Route Handlers inside `apps/web/src/app/api/**` rather than a separate
+service, since there's no requirement here for a backend independent of
+Next.js. `packages/shared` still enforces the "no duplicated types" rule from
+`AGENTS.md` between the UI and those route handlers; if a standalone
+`apps/api` is ever introduced, it would import from the same package.
 
-- Next.js 15 with the App Router
-- React 19 and TypeScript
-- Google Gemini through `@google/genai`
-- Zod request validation
-- Lucide React icons and Sonner notifications
-- Plain CSS in `src/app/globals.css`
-- pnpm and Docker support
+### Layer isolation
 
-## Requirements
+- **UI (Server/Client Components)** never imports `@ember-grain/db` directly —
+  only `apps/web/src/lib/data/*` does. Pages call those data-access functions;
+  client components talk to the API routes.
+- **API routes** are thin: parse with Zod, call a `lib/data/*` function or a
+  Gemini service, return an `ApiResult` envelope via `withErrorHandling`.
+- **`middleware.ts`** is the zero-trust gate for `/admin`, `/portal/kitchen`,
+  `/portal/driver`, `/cart`, `/checkout`, `/my-orders` and their API mirrors.
+  Route handlers re-check role with `requireRole()` as defense in depth.
 
-Install the following before running the project locally:
-
-- Node.js 20 or newer
-- Corepack-enabled Node.js installation, or pnpm 10.12.1
-- Git
-
-Docker users need Docker Engine and Docker Compose instead of a local Node.js installation.
-
-## Run locally
-
-Replace `<repository-url>` with the repository’s Git URL before running these commands:
+## Getting started
 
 ```bash
-git clone <repository-url>
-cd ember-table
-corepack enable
-corepack prepare pnpm@10.12.1 --activate
 pnpm install
+cp apps/web/.env.example apps/web/.env
+cp packages/db/.env.example packages/db/.env
+# edit apps/web/.env: set a real JWT_SECRET (openssl rand -base64 48)
+
+docker compose up -d postgres         # or point DATABASE_URL at your own Postgres
+pnpm db:migrate                       # creates tables
+pnpm db:seed                          # demo users, menu, 21 days of order history
+
+pnpm dev                              # http://localhost:3000
 ```
 
-Create a local environment file if you want live Gemini responses:
+Order display IDs are allocated by a PostgreSQL sequence and formatted as
+`EG-<number>`. Production deployments must apply migrations before starting
+the application:
 
 ```bash
-printf 'GOOGLE_GENAI_API_KEY=your_gemini_api_key_here\n' > .env.local
+pnpm db:migrate:deploy
 ```
 
-The API key is optional. Without it, the application uses deterministic demo responses for the AI recommendation and forecast features.
+### Demo accounts
 
-Start the development server:
+All seeded accounts use the password `1234`:
 
-```bash
-pnpm dev
-```
+| Role     | Email                     |
+| -------- | -------------------------- |
+| Admin    | admin@embergrain.dev       |
+| Cook     | cook@embergrain.dev        |
+| Driver   | driver@embergrain.dev      |
+| Customer | jordan@example.com         |
 
-Open [http://localhost:3000](http://localhost:3000) in a browser.
+Seeding also creates three sample `DiscountRule`s you can see applied on the
+menu right away: `HAPPYHOUR` ($3 off Drinks), `WEEKEND15` (15% off
+everything, scheduled for the next 7 days), and `RIBSPECIAL` ($5 off the
+Smoked Short Rib specifically).
 
-## Production build
+### Demo OTP for dine-in payment
 
-Run the following commands from the project directory:
+The mock dine-in payment verification (see **Dual fulfillment & payment
+verification** below) accepts any 13–19 digit card number that passes a
+Luhn check with a future expiry, or a mobile wallet number + the fixed demo
+OTP `123456`. Nothing here charges a real payment method.
 
-```bash
-pnpm lint
-pnpm build
-pnpm start
-```
+### Environment variables
 
-Then open [http://localhost:3000](http://localhost:3000). The `lint` script performs a TypeScript check, while `build` creates the standalone Next.js production output.
+| Variable                | Where                | Required | Notes                                                        |
+| ------------------------ | --------------------- | -------- | -------------------------------------------------------------- |
+| `DATABASE_URL`           | `apps/web`, `packages/db` | ✅       | PostgreSQL connection string                                  |
+| `JWT_SECRET`              | `apps/web`             | ✅       | ≥32 chars, signs session cookies                               |
+| `GOOGLE_GENAI_API_KEY`    | `apps/web`             | Optional | Without it, `/api/ai/recommend` and `/api/ai/forecast` fall back to a local heuristic/analytical implementation, so the app is fully evaluable offline. |
+| `RESEND_API_KEY`          | `apps/web`             | ✅       | API key for the Resend transactional email service               |
+| `EMAIL_FROM`              | `apps/web`             | ✅       | Verified From address used for password-reset emails            |
+| `NEXT_PUBLIC_APP_URL`     | `apps/web`             | ✅       | Used to build password-reset links                              |
+
+Env vars are validated at boot via `apps/web/src/env.ts` (Zod) — never read
+`process.env` directly in feature code.
+
+## Scripts (run from the repo root)
+
+| Script              | What it does                                   |
+| -------------------- | ------------------------------------------------ |
+| `pnpm dev`            | Start the Next.js dev server                     |
+| `pnpm build`           | Generate the Prisma client, build `apps/web`      |
+| `pnpm typecheck`       | `tsc --noEmit` across every workspace             |
+| `pnpm lint`            | Lint `apps/*`                                     |
+| `pnpm test`            | Run tests in every workspace that defines one     |
+| `pnpm db:migrate`      | `prisma migrate dev`                              |
+| `pnpm db:seed`         | Re-run the seed script                            |
+| `pnpm db:studio`       | Open Prisma Studio                                |
+
+## Domain model
+
+See `packages/db/prisma/schema.prisma`. Core entities:
+
+- **`User`** — role: `CUSTOMER` / `COOK` / `DRIVER` / `ADMIN`.
+- **`MenuItem`** — includes `calories` and `ingredients` for the dish detail
+  page, plus `tags` (dietary/attribute badges: Vegan, Vegetarian,
+  Gluten-Free, Halal, Nut-Free, **Spicy**).
+- **`Order`** — human-readable `displayId` like `EG-1048` (allocated
+  atomically via the Postgres sequence `order_display_id_seq`, so concurrent
+  checkouts can't collide); status machine `RECEIVED → PREPARING → PREPARED →
+  OUT_FOR_DELIVERY → DELIVERED` (or `CANCELLED`) — a `DINE_IN` order may also
+  jump `PREPARING → DELIVERED` directly ("served"), since there's no driver
+  hand-off. Also carries `fulfillmentType`, delivery/table fields, and
+  payment fields — see **Dual fulfillment** below.
+- **`OrderItem`** — `priceAtTime` is the price actually charged, i.e.
+  *after* any discount that was live at checkout.
+- **`DiscountRule`** — see **Promotions & discounts** below.
+
+## Adaptive navigation
+
+`components/navigation/Navbar.tsx` and `Footer.tsx` render differently by
+role (`NavRole = UserRole | "ANONYMOUS"`):
+
+- **Anonymous / Customer** — full nav (Home, Menu, About, Contact, Track
+  Order), cart with a live badge count, sign-in/account control. Footer is
+  the rich 4-column layout (brand, quick links, legal, newsletter).
+- **Admin** — the same public nav plus a management-suite link group
+  (Dashboard, Menu Manipulation, Promotions, Demand Forecast, Kitchen/Driver
+  Portal). When an admin browses the menu, `DishCard` swaps its "Add to
+  cart" button for an "Edit dish" shortcut into `/admin/menu`.
+- **Cook / Driver** — a minimal, distraction-free header (no public nav, no
+  cart) with an active-duty indicator and a link to their own console. The
+  footer becomes a centered ops footer with emergency kitchen/driver contact
+  info and a build timestamp instead of the marketing footer.
+
+## Promotions & discounts
+
+`/admin/discounts` manages `DiscountRule` rows: `PERCENTAGE` or
+`FIXED_AMOUNT`, scoped `GLOBAL` / `CATEGORY` / `SELECTIVE_ITEMS`, optionally
+time-boxed (`isScheduled` + `startDate`/`endDate`) on top of a manual
+`isActive` toggle.
+
+Effective prices are **computed at read time**, never stored on the item —
+`lib/data/discounts.ts#applyDiscounts` picks the best-applicable live rule
+per item (largest saving wins if more than one rule could apply) and
+`lib/data/menu.ts` attaches the result to every `MenuItemDTO` as `discount`.
+`DishCard`/`DishPrice` render the crossed-out original price + discounted
+price automatically wherever a `MenuItemDTO` is shown. **Checkout
+re-derives the discount server-side** from the live rules at order time —
+the client-submitted cart price is never trusted, and a rule that expired
+between page load and checkout can't be exploited.
+
+## Dual fulfillment & payment verification
+
+Checkout (`/checkout`) offers two fulfillment paths:
+
+- **`DELIVERY`** — requires an address + contact phone; paid on receipt
+  (no payment fields at checkout).
+- **`DINE_IN`** — requires a table number *and* upfront payment to hold the
+  table. An unverified `DINE_IN` order is **rejected before it's ever
+  persisted** — `lib/data/orders.ts#createOrder` calls
+  `lib/payments/mockVerify.ts` first and throws a `ValidationError` on
+  failure, so nothing unpaid ever reaches `/portal/kitchen`.
+
+  ⚠️ **`mockVerify.ts` is a demo, not a real payment integration.** It does
+  format/Luhn/expiry checks on card details and an OTP match
+  (`123456`, printed in the checkout UI) for mobile wallet — no processor is
+  called, no funds move, and none of this is PCI-DSS compliant. A real
+  deployment would tokenize payment details client-side and call an actual
+  gateway; the raw card/OTP fields here exist only to make the demo flow
+  self-contained.
+
+Kitchen and driver consoles adapt accordingly: a cook can serve a `DINE_IN`
+order straight from `PREPARING` to `DELIVERED` (no driver needed), while
+`/portal/driver`'s board only ever shows `DELIVERY` orders.
+
+## AI features
+
+See [`docs/AI_USAGE.md`](./docs/AI_USAGE.md) for how the recommend and
+forecast endpoints are grounded, validated, and fall back safely offline.
+The dish detail page's "Pairs well with" panel also biases `/api/ai/recommend`
+toward complementary categories (e.g. suggesting a dessert or drink for a
+main course) via `preferredCategories`.
+
+## CI/CD
+
+- `.github/workflows/ci.yml` — matrix-tests Node 20.x/22.x on PRs to
+  `main`/`develop`: install → typecheck → lint → `prisma generate` → test,
+  against a real Postgres service container.
+- `.github/workflows/deploy.yml` — on merge to `main`: build, run
+  `prisma migrate deploy`, then hand off to your hosting provider's deploy
+  step (placeholder — wire up Vercel/Fly/your registry here).
 
 ## Docker
 
-To build and run the application with Docker Compose:
-
 ```bash
-git clone <repository-url>
-cd ember-table
-printf 'GOOGLE_GENAI_API_KEY=your_gemini_api_key_here\n' > .env
 docker compose up --build
 ```
 
-The API key line is optional. The application is available at [http://localhost:3000](http://localhost:3000). Stop the container with `Ctrl+C`, or run `docker compose down` from another terminal.
-
-## Application routes
-
-| Route | Purpose |
-| --- | --- |
-| `/` | Customer landing page and AI menu guide |
-| `/menu` | Searchable menu catalog and cart entry point |
-| `/order/[id]` | Customer order status tracker |
-| `/admin` | Staff order console and preparation forecast |
-| `GET /api/items` | Returns the local menu catalog |
-| `GET /api/orders` | Lists current in-memory orders |
-| `POST /api/orders` | Creates a mock order |
-| `GET /api/orders/[id]` | Returns one order |
-| `PATCH /api/orders/[id]` | Advances an order to the next status |
-| `POST /api/ai/recommend` | Returns menu recommendations or fallback data |
-| `GET /api/ai/forecast` | Returns preparation forecast or fallback data |
-
-## Project structure
-
-```text
-src/
-├── app/          # Pages, layouts, global CSS, and API route handlers
-├── components/   # Reusable client-side UI and cart components
-├── data/         # Menu catalog and seeded demo data
-├── lib/          # Gemini integration and in-memory order services
-└── types/        # Shared TypeScript types
-docs/
-└── AI_USAGE.md   # AI development and runtime usage notes
-```
-
-## Limitations
-
-This is a demonstration application. Orders are stored in server memory and are lost when the server restarts. It does not process payments, provide authentication, or represent a production ordering backend. A production deployment should add durable storage, authentication and authorization, payment processing, rate limiting, observability, and a real-time update mechanism.
-
-## Improvements
-
-Potential next improvements, outside the current demo scope, include:
-
-- Replace the in-memory order map with a persistent database.
-- Add customer and staff authentication with role-based access control.
-- Integrate a payment provider and order confirmation notifications.
-- Replace polling with server-sent events or WebSockets for live status updates.
-- Add automated unit, integration, and end-to-end tests.
-- Add production monitoring, structured logging, rate limiting, and error tracking.
-- Add a managed menu and inventory workflow instead of seeded local data.
-
-## Documentation
-
-See [`docs/AI_USAGE.md`](docs/AI_USAGE.md) for the project’s AI development usage, runtime integration, safeguards, and verification approach.
-
-## Maintainer
-
-Danish Ajmal
+Brings up Postgres and the app (multi-stage build, Next.js `standalone`
+output) on `http://localhost:3000`. Set `JWT_SECRET` and
+`GOOGLE_GENAI_API_KEY` in your shell or a `.env` file before running — see
+`docker-compose.yml`.
