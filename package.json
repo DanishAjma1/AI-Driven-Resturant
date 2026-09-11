@@ -1,29 +1,32 @@
 {
-  "name": "ember-table",
-  "version": "1.0.0",
+  "name": "ember-grain-platform",
+  "version": "2.0.0",
   "private": true,
+  "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "postbuild": "cp -R .next/static .next/standalone/.next/static",
-    "start": "node .next/standalone/server.js",
-    "lint": "tsc --noEmit"
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter packages/db prisma generate && pnpm -r --filter=./apps/* build",
+    "start": "pnpm --filter web start",
+    "lint": "pnpm -r --filter=./apps/* lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r --if-present test",
+    "db:generate": "pnpm --filter db prisma generate",
+    "db:migrate": "pnpm --filter db prisma migrate dev",
+    "db:migrate:deploy": "pnpm --filter packages/db prisma migrate deploy",
+    "db:seed": "pnpm --filter db prisma db seed",
+    "db:studio": "pnpm --filter db prisma studio"
   },
-  "dependencies": {
-    "@google/genai": "^1.16.0",
-    "@next/env": "^16.3.4",
-    "lucide-react": "^0.468.0",
-    "next": "^15.4.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "sonner": "^2.0.8",
-    "zod": "^3.25.0"
-  },
-  "devDependencies": {
-    "@types/node": "^22.0.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "typescript": "^5.7.0"
-  },
-  "packageManager": "pnpm@10.12.1"
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@google/genai",
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma",
+      "protobufjs"
+    ]
+  }
 }

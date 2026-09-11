@@ -1,0 +1,175 @@
+// Ember & Grain — core domain schema
+// Run `pnpm db:generate` after editing this file.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  COOK
+  DRIVER
+  ADMIN
+}
+
+enum OrderStatus {
+  RECEIVED
+  PREPARING
+  PREPARED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum FulfillmentType {
+  DELIVERY
+  DINE_IN
+}
+
+enum PaymentMethod {
+  CARD
+  MOBILE_WALLET
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum DiscountScope {
+  GLOBAL
+  CATEGORY
+  SELECTIVE_ITEMS
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         UserRole @default(CUSTOMER)
+  createdAt    DateTime @default(now())
+
+  ordersPlaced  Order[] @relation("CustomerOrders")
+  ordersCooked  Order[] @relation("CookOrders")
+  ordersDriven  Order[] @relation("DriverOrders")
+  resetTokens   PasswordResetToken[]
+
+  @@index([role])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model MenuItem {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String
+  price       Decimal  @db.Decimal(10, 2)
+  category    String
+  imageUrl    String
+  isAvailable Boolean  @default(true)
+  tags        String[] @default([])
+  rating      Decimal  @default(4.5) @db.Decimal(2, 1)
+  popular     Boolean  @default(false)
+  calories    Int?
+  ingredients String[] @default([])
+
+  orderItems OrderItem[]
+
+  @@index([category])
+  @@index([isAvailable])
+}
+
+/// Rule-based promotional discounts. Effective prices are computed at read
+/// time (see lib/data/discounts.ts) rather than stored — items are never
+/// mutated, so a rule can be edited/expired without a backfill.
+model DiscountRule {
+  id            String        @id @default(cuid())
+  code          String        @unique
+  discountType  DiscountType
+  /// Percentage (0-100) when discountType is PERCENTAGE, or a dollar
+  /// amount when discountType is FIXED_AMOUNT.
+  value         Decimal       @db.Decimal(10, 2)
+  scope         DiscountScope
+  /// Populated when scope = CATEGORY.
+  category      String?
+  /// Populated when scope = SELECTIVE_ITEMS — MenuItem ids.
+  targetItemIds String[]      @default([])
+  /// When true, the rule is only live between startDate and endDate.
+  /// When false, `isActive` alone controls whether it's live.
+  isScheduled   Boolean       @default(false)
+  startDate     DateTime?
+  endDate       DateTime?
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([isActive])
+  @@index([scope])
+}
+
+model Order {
+  id         String      @id @default(cuid())
+  /// Human-friendly order code shown to staff/customers, e.g. "EG-1048"
+  displayId  String      @unique
+  customerId String
+  customer   User        @relation("CustomerOrders", fields: [customerId], references: [id])
+  cookId     String?
+  cook       User?       @relation("CookOrders", fields: [cookId], references: [id])
+  driverId   String?
+  driver     User?       @relation("DriverOrders", fields: [driverId], references: [id])
+  status     OrderStatus @default(RECEIVED)
+  totalAmount Decimal    @db.Decimal(10, 2)
+
+  fulfillmentType FulfillmentType @default(DELIVERY)
+  /// DELIVERY only
+  deliveryAddress String?
+  contactPhone    String?
+  /// DINE_IN only
+  tableNumber     Int?
+
+  /// DINE_IN orders require upfront payment; DELIVERY orders pay on
+  /// delivery so this stays false/null for them. See lib/payments/mockVerify.ts
+  /// — this is a simulated verification, not a real PCI-compliant charge.
+  paymentMethod   PaymentMethod?
+  paymentVerified Boolean        @default(false)
+
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  items OrderItem[]
+
+  @@index([status])
+  @@index([customerId])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId  String
+  menuItem    MenuItem @relation(fields: [menuItemId], references: [id])
+  quantity    Int
+  priceAtTime Decimal  @db.Decimal(10, 2)
+
+  @@index([orderId])
+  @@index([menuItemId])
+}

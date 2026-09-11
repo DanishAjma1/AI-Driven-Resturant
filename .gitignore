@@ -5,6 +5,9 @@ node_modules/
 .env
 .env.*
 !.env.example
+
+AGENTS.md
+
 coverage/
 dist/
 
