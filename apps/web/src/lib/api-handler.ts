@@ -76,6 +76,15 @@ export function withErrorHandling<Args extends unknown[]>(
             { status: 409 },
           );
         }
+        if (["P2024", "P1001", "P1017"].includes(err.code)) {
+          return NextResponse.json(
+            apiError(
+              "DATABASE_UNAVAILABLE",
+              "The database is temporarily unavailable. Please try again in a moment.",
+            ),
+            { status: 503 },
+          );
+        }
         if (err.code === "P2025") {
           return NextResponse.json(
             apiError("NOT_FOUND", "The requested record was not found."),

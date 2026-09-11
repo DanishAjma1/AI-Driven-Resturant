@@ -7,10 +7,10 @@ const BUILD_TIMESTAMP = process.env.NEXT_PUBLIC_BUILD_TIME ?? new Date().toISOSt
 
 export function Footer({ role }: { role: NavRole }) {
   const isOps = role === "COOK" || role === "DRIVER";
-  return isOps ? <OpsFooter role={role} /> : <PublicFooter />;
+  return isOps ? <OpsFooter role={role} /> : <PublicFooter role={role} />;
 }
 
-function PublicFooter() {
+function PublicFooter({ role }: { role: NavRole }) {
   return (
     <footer className="border-t border border-border bg--surface">
       <div className="mx-auto grid max-w-6xl gap-10 px-6 py-14 md:grid-cols-4">
@@ -60,6 +60,7 @@ function PublicFooter() {
             <li>hello@embergrain.dev</li>
             <li>418 Ashwood Lane, Portland, OR</li>
           </ul>
+          {role? "": (
           <form
             onSubmit={(e) => e.preventDefault()}
             className="flex overflow-hidden rounded-full border border-[var(--color-border)]"
@@ -67,15 +68,16 @@ function PublicFooter() {
             <input
               type="email"
               placeholder="Email for offers"
-              className="w-full bg-transparent px-3 py-2 text-sm outline-none"
+              className="w-full bg-transparent px-3 py-2 text-xs outline-none"
             />
             <button
               type="submit"
-              className="bg-[var(--color-ember)] px-3 py-2 text-xs font-medium text-[var(--color-bg)]"
+              className="bg-[var(--color-ember)] text-nowrap px-3 py-2 text-xs font-medium text-[var(--color-bg)]"
             >
               Sign up
             </button>
           </form>
+          )}
         </div>
       </div>
       <div className="border-t border-[var(--color-border)] py-4 text-center text-xs text-[var(--color-text-faint)]">
