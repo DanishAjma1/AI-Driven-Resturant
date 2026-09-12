@@ -33,10 +33,13 @@ export function AiMenuAssistant({
         body: JSON.stringify({ query, cartItemIds }),
       });
       const json = await res.json();
-      if (!json.ok) throw new Error(json.error?.message ?? "Something went wrong.");
+      if (!json.ok)
+        throw new Error(json.error?.message ?? "Something went wrong.");
       setResult(json.data as RecommendResponse);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't reach the AI guide.");
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't reach the AI guide.",
+      );
     } finally {
       setLoading(false);
     }
@@ -79,10 +82,21 @@ export function AiMenuAssistant({
       {result && (
         <div className="mt-4">
           {result.status === "not_available" && (
-            <p className="text-sm text-[var(--color-text-dim)]">{result.message}</p>
+            <p className="text-sm text-[var(--color-text-dim)]">
+              {result.message ||
+                "Sorry, I couldn't find anything matching your request."}
+            </p>
           )}
-          {result.status === "alternative_suggested" && result.message && (
-            <p className="mb-3 text-sm text-[var(--color-text-dim)]">{result.message}</p>
+          {result.status === "alternative_suggested" && (
+            <p className="mb-3 text-sm text-[var(--color-text-dim)]">
+              {result.message || "How about one of these alternatives?"}
+            </p>
+          )}
+
+          {result.status === "found" && (
+            <p className="mb-3 text-sm text-[var(--color-text-dim)]">
+              {result.message || "Here's what I found for you!"}
+            </p>
           )}
           {result.recommendations.length > 0 && (
             <ul className="space-y-2">
@@ -93,7 +107,9 @@ export function AiMenuAssistant({
                 >
                   <div>
                     <p className="text-sm font-medium">{rec.name}</p>
-                    <p className="text-xs text-[var(--color-text-dim)]">{rec.reason}</p>
+                    <p className="text-xs text-[var(--color-text-dim)]">
+                      {rec.reason}
+                    </p>
                   </div>
                   <button
                     onClick={() => handleAdd(rec.itemId)}
