@@ -5,8 +5,6 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "postbuild": "cp -R .next/static .next/standalone/apps/web/.next/static 2>/dev/null || true",
-    "start": "node .next/standalone/apps/web/server.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
