@@ -1,6 +1,7 @@
 import { prisma } from "@ember-grain/db";
 import type { MenuItemInput, UpdateMenuItemInput, MenuItemDTO } from "@ember-grain/shared";
 import { NotFoundError, ValidationError } from "@/lib/api-handler";
+import { withDatabaseFallback } from "@/lib/db-fallback";
 
 type PrismaMenuItem = Awaited<ReturnType<typeof prisma.menuItem.findMany>>[number];
 
@@ -46,8 +47,16 @@ async function uniqueSlug(name: string, excludeId?: string): Promise<string> {
 
 /** Every item including unavailable ones — for the admin manipulation table. */
 export async function listAllMenuItemsForAdmin(): Promise<MenuItemDTO[]> {
-  const items = await prisma.menuItem.findMany({ orderBy: [{ category: "asc" }, { name: "asc" }] });
-  return items.map(toAdminDTO);
+  return withDatabaseFallback(
+    async () => {
+      const items = await prisma.menuItem.findMany({
+        orderBy: [{ category: "asc" }, { name: "asc" }],
+      });
+      return items.map(toAdminDTO);
+    },
+    [],
+    "listAllMenuItemsForAdmin",
+  );
 }
 
 export async function createMenuItem(input: MenuItemInput): Promise<MenuItemDTO> {

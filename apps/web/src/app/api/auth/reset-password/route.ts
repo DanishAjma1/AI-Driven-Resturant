@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@ember-grain/db";
+import { Prisma, prisma } from "@ember-grain/db";
 import { resetPasswordSchema, apiSuccess } from "@ember-grain/shared";
 import { withErrorHandling, HttpError } from "@/lib/api-handler";
 import { hashPassword } from "@/lib/password";
@@ -21,7 +21,7 @@ export const POST = withErrorHandling(async (request: Request) => {
 
   const passwordHash = await hashPassword(body.password);
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // Claim the token atomically. Without this conditional update, two
     // concurrent requests can both reset the password with one token.
     const claimed = await tx.passwordResetToken.updateMany({

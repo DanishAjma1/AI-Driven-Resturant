@@ -8,7 +8,8 @@
   },
   "scripts": {
     "dev": "pnpm --filter web dev",
-    "build": "pnpm --filter packages/db prisma generate && pnpm -r --filter=./apps/* build",
+    "build": "pnpm --filter @ember-grain/db db:generate && pnpm --filter web build",
+    "postinstall": "pnpm --filter @ember-grain/db db:generate",
     "start": "pnpm --filter web start",
     "lint": "pnpm -r --filter=./apps/* lint",
     "typecheck": "pnpm -r typecheck",
