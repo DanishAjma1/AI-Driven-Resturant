@@ -202,7 +202,10 @@ export async function getEnhancedRecommendations(
     const parsed: unknown = JSON.parse(response.text ?? "{}");
     const validated = recommendResponseSchema.safeParse(parsed);
     if (!validated.success) {
-      console.error("[gemini_recommend_schema_mismatch]", validated.error.flatten());
+      console.error(
+        "[gemini_recommend_schema_mismatch]",
+        validated.error.flatten(),
+      );
       return localFallback(input, catalog);
     }
 
@@ -212,7 +215,45 @@ export async function getEnhancedRecommendations(
       catalogIds.has(rec.itemId),
     );
 
-    return { ...validated.data, recommendations: safeRecommendations };
+    // If the model produced no safe recommendations, fall back to the deterministic
+    // local logic rather than returning an empty list or an incorrect status.
+    if (safeRecommendations.length === 0) {
+      return localFallback(input, catalog);
+    }
+
+    // If the model returned "alternative" upsell items but set status to "found",
+    // normalize the status to `alternative_suggested`. Also, if the model set
+    // `not_available` but we do have safe recommendations, treat it as `found`.
+    let finalStatus = validated.data.status as RecommendResponse["status"];
+    const hasAlternative = safeRecommendations.some(
+      (r) => r.upsellType === "alternative",
+    );
+    if (hasAlternative && finalStatus !== "alternative_suggested") {
+      finalStatus = "alternative_suggested";
+    } else if (
+      finalStatus === "not_available" &&
+      safeRecommendations.length > 0
+    ) {
+      finalStatus = "found";
+    }
+
+    const finalResponse: RecommendResponse = {
+      ...validated.data,
+      status: finalStatus,
+      recommendations: safeRecommendations,
+    };
+
+    // Ensure message is present for alternative/not-available cases.
+    if (finalResponse.status === "not_available") {
+      finalResponse.message = finalResponse.message ?? NOT_AVAILABLE_MESSAGE;
+    }
+    if (finalResponse.status === "alternative_suggested") {
+      finalResponse.message =
+        finalResponse.message ??
+        `We don't have "${input.query}" on the menu, but you might enjoy this instead.`;
+    }
+
+    return finalResponse;
   } catch (err) {
     console.error("[gemini_recommend_error]", err);
     return localFallback(input, catalog);
