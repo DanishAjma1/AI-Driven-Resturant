@@ -8,17 +8,17 @@
   },
   "scripts": {
     "dev": "pnpm --filter web dev",
-    "build": "pnpm --filter @ember-grain/db db:generate && pnpm --filter web build",
-    "postinstall": "pnpm --filter @ember-grain/db db:generate",
-    "start": "pnpm --filter web start",
+    "build": "pnpm --filter @ember-grain/db prisma generate && pnpm --filter web build",
+    "postinstall": "pnpm --filter @ember-grain/db prisma generate",
+    "start": "node apps/web/.next/standalone/apps/web/server.js",
     "lint": "pnpm -r --filter=./apps/* lint",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r --if-present test",
-    "db:generate": "pnpm --filter db prisma generate",
-    "db:migrate": "pnpm --filter db prisma migrate dev",
-    "db:migrate:deploy": "pnpm --filter packages/db prisma migrate deploy",
-    "db:seed": "pnpm --filter db prisma db seed",
-    "db:studio": "pnpm --filter db prisma studio"
+    "db:generate": "pnpm --filter @ember-grain/db prisma generate",
+    "db:migrate": "pnpm --filter @ember-grain/db prisma migrate dev",
+    "db:migrate:deploy": "pnpm --filter @ember-grain/db prisma migrate deploy",
+    "db:seed": "pnpm --filter @ember-grain/db prisma db seed",
+    "db:studio": "pnpm --filter @ember-grain/db prisma studio"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

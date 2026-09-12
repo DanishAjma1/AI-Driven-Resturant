@@ -4,6 +4,7 @@ import {
   FulfillmentType,
   OrderStatus,
   type FulfillmentInput,
+  type CreateOrderItemInput,
   type OrderDTO,
 } from "@ember-grain/shared";
 import { HttpError, NotFoundError, ValidationError } from "@/lib/api-handler";
@@ -61,11 +62,6 @@ async function nextDisplayId(): Promise<string> {
   const row = rows[0];
   if (!row) throw new Error("The order display ID sequence returned no value.");
   return `EG-${row.value.toString()}`;
-}
-
-export interface CreateOrderItemInput {
-  menuItemId: string;
-  quantity: number;
 }
 
 export async function createOrder(
